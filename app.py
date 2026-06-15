@@ -246,15 +246,28 @@ def build_features(stock_df, etf_df, fwd_days=10):
     return df, feature_cols
 
 def run_clustering(X_scaled, max_k=8):
-    best_k, best_score = 4, -1
-    for k in range(4, max_k+1):
-        km  = KMeans(n_clusters=k, random_state=42, n_init=10)
-        lbl = km.fit_predict(X_scaled)
-        s   = silhouette_score(X_scaled, lbl)
-        if s > best_score:
-            best_k, best_score = k, s
+    # Use elbow method — find K where inertia drop slows most
+    ks      = range(2, max_k+1)
+    inertias = []
+    for k in ks:
+        km = KMeans(n_clusters=k, random_state=42, n_init=10)
+        km.fit(X_scaled)
+        inertias.append(km.inertia_)
+
+    # Find elbow: point of maximum curvature
+    # Using second derivative of inertia curve
+    inertias = np.array(inertias)
+    deltas   = np.diff(inertias)        # first derivative
+    curvature = np.diff(deltas)         # second derivative
+    elbow_idx = np.argmax(curvature)    # biggest bend
+    best_k    = list(ks)[elbow_idx + 1] # +1 offset for diff
+
+    # Clamp between 3 and 5 — financially meaningful range
+    best_k = max(3, min(5, best_k))
+
     km_final = KMeans(n_clusters=best_k, random_state=42, n_init=10)
-    return km_final.fit_predict(X_scaled), best_k
+    labels   = km_final.fit_predict(X_scaled)
+    return labels, best_k, list(ks), inertias.tolist()
 
 def find_similar(features_df, feature_cols, scaler, k=20, forward_col="fwd_10d"):
     X  = scaler.transform(features_df[feature_cols])
@@ -345,7 +358,7 @@ if run_button:
     with st.spinner("Running clustering and similarity engine..."):
         scaler   = StandardScaler()
         X_scaled = scaler.fit_transform(features_df[feature_cols])
-        clusters, best_k = run_clustering(X_scaled)
+        clusters, best_k, elbow_ks, elbow_inertias = run_clustering(X_scaled)
         features_df["cluster"] = clusters
 
         pca   = PCA(n_components=2, random_state=42)
@@ -475,27 +488,25 @@ if run_button:
                 ].mean().round(2),
                 use_container_width=True
             )
-            st.markdown("**Silhouette scores**")
-            ks, silhs = [], []
-            for k_ in range(4, 9):
-                km_ = KMeans(n_clusters=k_, random_state=42, n_init=5)
-                lb_ = km_.fit_predict(X_scaled)
-                ks.append(k_)
-                silhs.append(silhouette_score(X_scaled, lb_))
-            fig_e = go.Figure(go.Scatter(
-                x=ks, y=silhs, mode="lines+markers",
-                line=dict(color="#7F77DD")
+            st.markdown("**Elbow method**")
+            fig_e = go.Figure()
+            fig_e.add_trace(go.Scatter(
+                x=elbow_ks, y=elbow_inertias,
+                mode="lines+markers",
+                line=dict(color="#7F77DD", width=2),
+                marker=dict(size=7)
             ))
             fig_e.add_vline(x=best_k, line_dash="dash", line_color="#E24B4A",
-                            annotation_text=f"K={best_k}")
+                            annotation_text=f"K={best_k} (elbow)",
+                            annotation_font_color="black")
             fig_e.update_layout(
                 height=220,
                 margin=dict(t=20, b=30),
                 plot_bgcolor="white",
                 paper_bgcolor="white",
                 font=dict(color="black"),
-                xaxis=dict(color="black", gridcolor="#eeeeee"),
-                yaxis=dict(color="black", gridcolor="#eeeeee"),
+                xaxis=dict(title="K", color="black", gridcolor="#eeeeee"),
+                yaxis=dict(title="Inertia", color="black", gridcolor="#eeeeee"),
             )
             st.plotly_chart(fig_e, use_container_width=True)
 
