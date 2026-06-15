@@ -91,7 +91,7 @@ def calc_macd(close, fast=12, slow=26, signal=9):
     histogram  = macd_line - signal_line
     return macd_line, signal_line, histogram
 
-def calc_bbands(close, length=20, std=2):
+ddef calc_bbands(close, length=20, std=2):
     mid   = calc_sma(close, length)
     sigma = close.rolling(length).std()
     upper = mid + std * sigma
@@ -265,8 +265,8 @@ def build_features(stock_df, etf_df, fwd_days=10):
     return df, feature_cols
 
 def run_clustering(X_scaled, max_k=8):
-    best_k, best_score = 2, -1
-    for k in range(2, max_k+1):
+    best_k, best_score = 3, -1
+    for k in range(3, max_k+1):
         km  = KMeans(n_clusters=k, random_state=42, n_init=10)
         lbl = km.fit_predict(X_scaled)
         s   = silhouette_score(X_scaled, lbl)
@@ -492,7 +492,7 @@ if run_button:
             )
             st.markdown("**Silhouette scores**")
             ks, silhs = [], []
-            for k_ in range(2,9):
+            for k_ in range(3,9):
                 km_ = KMeans(n_clusters=k_, random_state=42, n_init=5)
                 lb_ = km_.fit_predict(X_scaled)
                 ks.append(k_)
@@ -504,7 +504,9 @@ if run_button:
             fig_e.add_vline(x=best_k, line_dash="dash", line_color="#E24B4A",
                             annotation_text=f"K={best_k}")
             fig_e.update_layout(height=220, margin=dict(t=20,b=30),
-                                  plot_bgcolor="white", paper_bgcolor="white")
+                                  plot_bgcolor="white",
+                                  paper_bgcolor="white",
+                                  font=dict(color="black"))
             st.plotly_chart(fig_e, use_container_width=True)
 
     with tab4:
@@ -552,7 +554,7 @@ if run_button:
         st.plotly_chart(fig, use_container_width=True)
         st.caption("Low R² confirms no single indicator predicts returns reliably "
                    "— justifying the multi-feature similarity approach.")
-    with tab6:
+                   with tab6:
         st.subheader("Monte Carlo simulation — forward price paths")
         st.caption(
             "Simulates 500 possible price paths by sampling from the "
