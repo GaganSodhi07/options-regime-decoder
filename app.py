@@ -436,7 +436,7 @@ if run_button:
     with tab3:
         st.subheader(f"Market regimes — PCA (K={best_k})")
         var      = pca.explained_variance_ratio_ * 100
-        colors_c = ["#5DCAA5","#7F77DD","#D85A30","#EF9F27","#378ADD","#D4537E"]
+        colors_c = ["#5DCAA5","#7F77DD","#D85A30","#EF9F27","#378ADD","#D4537E","#639922","#A05195"]
         fig = go.Figure()
         for c in sorted(features_df["cluster"].unique()):
             mask = features_df["cluster"] == c
