@@ -270,6 +270,8 @@ def build_features(stock_df, etf_df, fwd_days=10):
         "bb_width","bb_pct_b",
         "vol_zscore","vol_ratio",
         "doji","hammer","engulfing_bull","engulfing_bear",
+        "stoch_k","stoch_kd_diff","stoch_zone",
+        "adx","adx_trend","di_cross",
         "sector_corr",
     ]
     df = df.dropna(subset=feature_cols)
@@ -485,7 +487,7 @@ if run_button:
                         line=dict(width=1, color="white")),
             name="Today"
         ))
-        fig.update_layout(
+       fig.update_layout(
             title=f"PC1={var[0]:.1f}%  PC2={var[1]:.1f}% variance explained",
             xaxis_title=f"PC1 ({var[0]:.1f}%)",
             yaxis_title=f"PC2 ({var[1]:.1f}%)",
