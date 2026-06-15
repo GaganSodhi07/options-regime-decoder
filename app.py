@@ -498,7 +498,6 @@ if run_button:
             xaxis=dict(color="black", gridcolor="#eeeeee"),
             yaxis=dict(color="black", gridcolor="#eeeeee"),
         )
-        )
         col_a, col_b = st.columns([2,1])
         col_a.plotly_chart(fig, use_container_width=True)
         with col_b:
