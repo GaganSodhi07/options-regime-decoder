@@ -19,6 +19,17 @@ st.set_page_config(page_title="Market Mirror", page_icon="📈", layout="wide")
 st.title("📈 Market Mirror")
 st.caption("Find historical setups similar to today — and see what happened next.")
 
+st.markdown("""
+    <style>
+    [data-testid="stSidebar"] {
+        background-color: #f8f9fa;
+    }
+    [data-testid="stSidebar"] * {
+        color: #1a1a1a !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 with st.sidebar:
     st.header("Settings")
     ticker_input = st.text_input("Ticker symbol", value="AAPL",
@@ -265,8 +276,8 @@ def build_features(stock_df, etf_df, fwd_days=10):
     return df, feature_cols
 
 def run_clustering(X_scaled, max_k=8):
-    best_k, best_score = 3, -1
-    for k in range(3, max_k+1):
+    best_k, best_score = 4, -1
+    for k in range(4, max_k+1):
         km  = KMeans(n_clusters=k, random_state=42, n_init=10)
         lbl = km.fit_predict(X_scaled)
         s   = silhouette_score(X_scaled, lbl)
@@ -478,7 +489,13 @@ if run_button:
             title=f"PC1={var[0]:.1f}%  PC2={var[1]:.1f}% variance explained",
             xaxis_title=f"PC1 ({var[0]:.1f}%)",
             yaxis_title=f"PC2 ({var[1]:.1f}%)",
-            height=500, plot_bgcolor="white", paper_bgcolor="white"
+            height=500,
+            plot_bgcolor="white",
+            paper_bgcolor="white",
+            font=dict(color="black"),
+            xaxis=dict(color="black", gridcolor="#eeeeee"),
+            yaxis=dict(color="black", gridcolor="#eeeeee"),
+        )
         )
         col_a, col_b = st.columns([2,1])
         col_a.plotly_chart(fig, use_container_width=True)
@@ -492,7 +509,7 @@ if run_button:
             )
             st.markdown("**Silhouette scores**")
             ks, silhs = [], []
-            for k_ in range(3,9):
+            for k_ in range(4, 9):
                 km_ = KMeans(n_clusters=k_, random_state=42, n_init=5)
                 lb_ = km_.fit_predict(X_scaled)
                 ks.append(k_)
@@ -503,10 +520,15 @@ if run_button:
             ))
             fig_e.add_vline(x=best_k, line_dash="dash", line_color="#E24B4A",
                             annotation_text=f"K={best_k}")
-            fig_e.update_layout(height=220, margin=dict(t=20,b=30),
-                                  plot_bgcolor="white",
-                                  paper_bgcolor="white",
-                                  font=dict(color="black"))
+            fig_e.update_layout(
+                height=220,
+                margin=dict(t=20, b=30),
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+                font=dict(color="black"),
+                xaxis=dict(color="black", gridcolor="#eeeeee"),
+                yaxis=dict(color="black", gridcolor="#eeeeee"),
+            )
             st.plotly_chart(fig_e, use_container_width=True)
 
     with tab4:
