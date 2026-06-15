@@ -1,4 +1,3 @@
-
 import streamlit as st
 import yfinance as yf
 import pandas as pd
@@ -21,12 +20,8 @@ st.caption("Find historical setups similar to today — and see what happened ne
 
 st.markdown("""
     <style>
-    [data-testid="stSidebar"] {
-        background-color: #f8f9fa;
-    }
-    [data-testid="stSidebar"] * {
-        color: #1a1a1a !important;
-    }
+    [data-testid="stSidebar"] {background-color: #f8f9fa;}
+    [data-testid="stSidebar"] * {color: #1a1a1a !important;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -37,8 +32,7 @@ with st.sidebar:
     period       = st.selectbox("Historical period", ["2y","3y","5y"], index=2)
     forward_days = st.selectbox("Forward horizon (days)", [5,10,20], index=1)
     k_matches    = st.slider("Similar instances (K)", 10, 40, 20)
-    run_button   = st.button("Run analysis", type="primary",
-                              use_container_width=True)
+    run_button   = st.button("Run analysis", type="primary", use_container_width=True)
 
 forward_col = f"fwd_{forward_days}d"
 
@@ -75,12 +69,11 @@ def fetch_data(symbol, period="5y"):
     sector_etf = get_sector_etf(symbol)
     stock = yf.Ticker(symbol).history(period=period, auto_adjust=True)
     stock.index = stock.index.tz_localize(None)
-    etf   = yf.Ticker(sector_etf).history(period=period, auto_adjust=True)
+    etf = yf.Ticker(sector_etf).history(period=period, auto_adjust=True)
     etf.index = etf.index.tz_localize(None)
     common = stock.index.intersection(etf.index)
     return stock.loc[common], etf.loc[common]
 
-# ── Pure pandas/numpy indicator functions ──────────────────────────────
 def calc_rsi(close, length=14):
     delta = close.diff()
     gain  = delta.clip(lower=0).rolling(length).mean()
@@ -95,11 +88,11 @@ def calc_sma(close, length):
     return close.rolling(length).mean()
 
 def calc_macd(close, fast=12, slow=26, signal=9):
-    ema_fast   = calc_ema(close, fast)
-    ema_slow   = calc_ema(close, slow)
-    macd_line  = ema_fast - ema_slow
-    signal_line= calc_ema(macd_line, signal)
-    histogram  = macd_line - signal_line
+    ema_fast    = calc_ema(close, fast)
+    ema_slow    = calc_ema(close, slow)
+    macd_line   = ema_fast - ema_slow
+    signal_line = calc_ema(macd_line, signal)
+    histogram   = macd_line - signal_line
     return macd_line, signal_line, histogram
 
 def calc_bbands(close, length=20, std=2):
@@ -117,32 +110,23 @@ def calc_stochastic(high, low, close, k_period=14, d_period=3):
     return k, d
 
 def calc_adx(high, low, close, length=14):
-    # True Range
     prev_close = close.shift(1)
     tr = pd.concat([
         high - low,
         (high - prev_close).abs(),
-        (low  - prev_close).abs()
+        (low - prev_close).abs()
     ], axis=1).max(axis=1)
-
-    # Directional movement
     up_move   = high - high.shift(1)
     down_move = low.shift(1) - low
-
-    plus_dm  = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
-    minus_dm = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
-
-    plus_dm  = pd.Series(plus_dm,  index=close.index)
-    minus_dm = pd.Series(minus_dm, index=close.index)
-
-    # Smoothed averages (Wilder)
-    atr      = tr.ewm(alpha=1/length, adjust=False).mean()
-    plus_di  = 100 * plus_dm.ewm(alpha=1/length,  adjust=False).mean() / atr
-    minus_di = 100 * minus_dm.ewm(alpha=1/length, adjust=False).mean() / atr
-
-    dx  = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
-    adx = dx.ewm(alpha=1/length, adjust=False).mean()
-
+    plus_dm   = np.where((up_move > down_move) & (up_move > 0), up_move, 0.0)
+    minus_dm  = np.where((down_move > up_move) & (down_move > 0), down_move, 0.0)
+    plus_dm   = pd.Series(plus_dm,  index=close.index)
+    minus_dm  = pd.Series(minus_dm, index=close.index)
+    atr       = tr.ewm(alpha=1/length, adjust=False).mean()
+    plus_di   = 100 * plus_dm.ewm(alpha=1/length, adjust=False).mean() / atr
+    minus_di  = 100 * minus_dm.ewm(alpha=1/length, adjust=False).mean() / atr
+    dx        = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
+    adx       = dx.ewm(alpha=1/length, adjust=False).mean()
     return adx, plus_di, minus_di
 
 def build_features(stock_df, etf_df, fwd_days=10):
@@ -152,14 +136,11 @@ def build_features(stock_df, etf_df, fwd_days=10):
     low    = df["Low"]
     volume = df["Volume"]
 
-    # RSI
     df["rsi"]       = calc_rsi(close, 14)
     df["rsi_slope"] = df["rsi"].diff(3)
-    df["rsi_zone"]  = pd.cut(df["rsi"],
-                              bins=[0,30,45,55,70,100],
+    df["rsi_zone"]  = pd.cut(df["rsi"], bins=[0,30,45,55,70,100],
                               labels=[0,1,2,3,4]).astype(float)
 
-    # MACD
     macd_line, macd_sig, macd_hist = calc_macd(close)
     df["macd_line"]       = macd_line
     df["macd_signal"]     = macd_sig
@@ -167,11 +148,10 @@ def build_features(stock_df, etf_df, fwd_days=10):
     df["macd_hist_slope"] = df["macd_hist"].diff(2)
     df["macd_cross"]      = 0
     df.loc[(macd_line > macd_sig) &
-           (macd_line.shift(1) <= macd_sig.shift(1)), "macd_cross"] =  1
+           (macd_line.shift(1) <= macd_sig.shift(1)), "macd_cross"] = 1
     df.loc[(macd_line < macd_sig) &
            (macd_line.shift(1) >= macd_sig.shift(1)), "macd_cross"] = -1
 
-    # EMA / SMA
     df["ema20"]  = calc_ema(close, 20)
     df["ema50"]  = calc_ema(close, 50)
     df["ema200"] = calc_ema(close, 200)
@@ -184,17 +164,16 @@ def build_features(stock_df, etf_df, fwd_days=10):
 
     df["ema_cross"] = 0
     df.loc[(df["ema20"] > df["ema50"]) &
-           (df["ema20"].shift(1) <= df["ema50"].shift(1)), "ema_cross"] =  1
+           (df["ema20"].shift(1) <= df["ema50"].shift(1)), "ema_cross"] = 1
     df.loc[(df["ema20"] < df["ema50"]) &
            (df["ema20"].shift(1) >= df["ema50"].shift(1)), "ema_cross"] = -1
 
     df["sma_cross"] = 0
     df.loc[(df["sma20"] > df["sma50"]) &
-           (df["sma20"].shift(1) <= df["sma50"].shift(1)), "sma_cross"] =  1
+           (df["sma20"].shift(1) <= df["sma50"].shift(1)), "sma_cross"] = 1
     df.loc[(df["sma20"] < df["sma50"]) &
            (df["sma20"].shift(1) >= df["sma50"].shift(1)), "sma_cross"] = -1
 
-    # Bollinger Bands
     bb_upper, bb_mid, bb_lower = calc_bbands(close, 20, 2)
     df["bb_upper"] = bb_upper
     df["bb_lower"] = bb_lower
@@ -202,22 +181,18 @@ def build_features(stock_df, etf_df, fwd_days=10):
     df["bb_width"] = (bb_upper - bb_lower) / bb_mid * 100
     df["bb_pct_b"] = (close - bb_lower) / (bb_upper - bb_lower).replace(0, np.nan)
 
-    # Volume
     df["vol_sma20"]  = calc_sma(volume.astype(float), 20)
     df["vol_zscore"] = (volume - df["vol_sma20"]) / (
         volume.rolling(20).std().replace(0, np.nan))
     df["vol_ratio"]  = volume / df["vol_sma20"]
 
-    # Candlestick patterns
     body         = (close - df["Open"]).abs()
     candle_range = (high - low).replace(0, np.nan)
     df["doji"]   = (body / candle_range < 0.1).astype(int)
     lower_wick   = df[["Open","Close"]].min(axis=1) - low
     upper_wick   = high - df[["Open","Close"]].max(axis=1)
     df["hammer"] = (
-        (lower_wick > 2 * body) &
-        (upper_wick < body) &
-        (candle_range > 0)
+        (lower_wick > 2 * body) & (upper_wick < body) & (candle_range > 0)
     ).astype(int)
     df["engulfing_bull"] = (
         (df["Open"] < close.shift(1)) &
@@ -230,36 +205,29 @@ def build_features(stock_df, etf_df, fwd_days=10):
         (close.shift(1) > df["Open"].shift(1))
     ).astype(int)
 
-    # Stochastic Oscillator
     stoch_k, stoch_d    = calc_stochastic(high, low, close)
     df["stoch_k"]       = stoch_k
     df["stoch_d"]       = stoch_d
-    df["stoch_kd_diff"] = stoch_k - stoch_d   # positive = bullish cross
-    df["stoch_zone"]    = pd.cut(stoch_k,
-                                  bins=[0, 20, 45, 55, 80, 100],
-                                  labels=[0, 1, 2, 3, 4]).astype(float)
+    df["stoch_kd_diff"] = stoch_k - stoch_d
+    df["stoch_zone"]    = pd.cut(stoch_k, bins=[0,20,45,55,80,100],
+                                  labels=[0,1,2,3,4]).astype(float)
 
-    # ADX
     adx, plus_di, minus_di = calc_adx(high, low, close)
-    df["adx"]           = adx
-    df["adx_plus_di"]   = plus_di
-    df["adx_minus_di"]  = minus_di
-    df["adx_trend"]     = pd.cut(adx,
-                                  bins=[0, 20, 25, 40, 100],
-                                  labels=[0, 1, 2, 3]).astype(float)
-    # DI crossover: +1 when +DI crosses above -DI (bullish), -1 when below
-    df["di_cross"]      = 0
+    df["adx"]        = adx
+    df["adx_plus_di"]  = plus_di
+    df["adx_minus_di"] = minus_di
+    df["adx_trend"]  = pd.cut(adx, bins=[0,20,25,40,100],
+                               labels=[0,1,2,3]).astype(float)
+    df["di_cross"]   = 0
     df.loc[(plus_di > minus_di) &
-           (plus_di.shift(1) <= minus_di.shift(1)), "di_cross"] =  1
+           (plus_di.shift(1) <= minus_di.shift(1)), "di_cross"] = 1
     df.loc[(plus_di < minus_di) &
            (plus_di.shift(1) >= minus_di.shift(1)), "di_cross"] = -1
 
-    # Sector correlation
     df["sector_corr"] = (
         close.pct_change().rolling(21).corr(etf_df["Close"].pct_change())
     )
 
-    # Forward returns
     df[f"fwd_{fwd_days}d"] = close.pct_change(fwd_days).shift(-fwd_days) * 100
 
     feature_cols = [
@@ -330,28 +298,28 @@ def describe_setup(today, similar_df, symbol, forward_col):
                "weakening"     if rsi < 45 else
                "neutral"       if rsi < 55 else
                "strengthening" if rsi < 70 else "overbought")
-    hist    = today["macd_hist"]
-    slope   = today["macd_hist_slope"]
+    hist     = today["macd_hist"]
+    slope    = today["macd_hist_slope"]
     macd_txt = ("MACD bullish and accelerating"     if hist>0 and slope>0 else
                 "MACD bullish but losing momentum"  if hist>0 else
                 "MACD bearish but momentum slowing" if slope>0 else
                 "MACD bearish and accelerating down")
     bb      = today["bb_pct_b"]
-    bb_txt  = ("near lower band — oversold zone"    if bb < 0.2 else
-               "near upper band — overbought zone"  if bb > 0.8 else
+    bb_txt  = ("near lower band — oversold zone"   if bb < 0.2 else
+               "near upper band — overbought zone" if bb > 0.8 else
                f"mid-band (BB %B: {bb:.2f})")
     vol_txt = ("above-average volume" if today["vol_zscore"] > 0.5 else
                "below-average volume" if today["vol_zscore"] < -0.5 else
                "average volume")
-    d       = today["price_vs_ema50"]
-    ma_txt  = (f"price {d:.1f}% above EMA50"       if d > 2 else
-               f"price {abs(d):.1f}% below EMA50"  if d < -2 else
-               "price hugging EMA50")
-    bias    = (f"historically bullish — {up_pct:.0f}% of similar setups rose"
-               if up_pct >= 60 else
-               f"historically bearish — {100-up_pct:.0f}% of similar setups fell"
-               if up_pct <= 40 else
-               f"historically mixed — {up_pct:.0f}% up / {100-up_pct:.0f}% down")
+    d      = today["price_vs_ema50"]
+    ma_txt = (f"price {d:.1f}% above EMA50"      if d > 2 else
+              f"price {abs(d):.1f}% below EMA50" if d < -2 else
+              "price hugging EMA50")
+    bias   = (f"historically bullish — {up_pct:.0f}% of similar setups rose"
+              if up_pct >= 60 else
+              f"historically bearish — {100-up_pct:.0f}% of similar setups fell"
+              if up_pct <= 40 else
+              f"historically mixed — {up_pct:.0f}% up / {100-up_pct:.0f}% down")
     return (
         f"{symbol} is currently **{rsi_txt}** (RSI {rsi:.0f}). "
         f"{macd_txt}, with price {bb_txt}. "
@@ -361,7 +329,6 @@ def describe_setup(today, similar_df, symbol, forward_col):
         f"The setup is {bias}."
     )
 
-# ── Main ──────────────────────────────────────────────────────────────
 if run_button:
     try:
         symbol = resolve_ticker(ticker_input)
@@ -386,12 +353,12 @@ if run_button:
         features_df["pca1"] = X_pca[:,0]
         features_df["pca2"] = X_pca[:,1]
 
-        similar_df       = find_similar(features_df, feature_cols, scaler,
-                                         k=k_matches, forward_col=forward_col)
-        rf, test_acc     = train_rf(features_df, feature_cols, scaler, forward_col)
-        today            = features_df.iloc[-1]
-        today_vec        = scaler.transform(features_df[feature_cols].iloc[[-1]])
-        proba            = rf.predict_proba(today_vec)[0]
+        similar_df   = find_similar(features_df, feature_cols, scaler,
+                                     k=k_matches, forward_col=forward_col)
+        rf, test_acc = train_rf(features_df, feature_cols, scaler, forward_col)
+        today        = features_df.iloc[-1]
+        today_vec    = scaler.transform(features_df[feature_cols].iloc[[-1]])
+        proba        = rf.predict_proba(today_vec)[0]
 
     fwd_returns = similar_df[forward_col].dropna()
     up_pct      = (fwd_returns > 0).mean() * 100
@@ -400,7 +367,7 @@ if run_button:
     st.subheader(f"{symbol}  —  {features_df.index[-1].strftime('%d %b %Y')}")
 
     c1,c2,c3,c4,c5 = st.columns(5)
-    c1.metric("Current regime",   f"Regime {int(today['cluster'])}")
+    c1.metric("Current regime",    f"Regime {int(today['cluster'])}")
     c2.metric(f"Avg {forward_days}d return", f"{avg_ret:.1f}%", delta=f"{avg_ret:.1f}%")
     c3.metric("Bullish instances", f"{up_pct:.0f}%")
     c4.metric("RF bullish prob",   f"{proba[1]*100:.0f}%")
@@ -441,10 +408,10 @@ if run_button:
             chunk = stock_df.loc[features_df.index[start:end]]["Close"]
             base  = chunk.iloc[min(30, pos-start)]
             chunk = chunk / base * 100
-            fig.add_trace(go.Scatter(x=list(range(len(chunk))), y=chunk.values,
-                                      mode="lines",
-                                      line=dict(width=1.5, color="#7F77DD"),
-                                      showlegend=False), row=1, col=i)
+            fig.add_trace(go.Scatter(
+                x=list(range(len(chunk))), y=chunk.values,
+                mode="lines", line=dict(width=1.5, color="#7F77DD"),
+                showlegend=False), row=1, col=i)
             fig.add_vline(x=min(30, pos-start), line_dash="dash",
                           line_color="#E24B4A", row=1, col=i)
         fig.update_layout(height=280, plot_bgcolor="white", paper_bgcolor="white")
@@ -457,8 +424,8 @@ if run_button:
             marker_color=["#5DCAA5" if v>0 else "#E24B4A" for v in fwd_returns],
             opacity=0.85
         ))
-        fig.add_vline(x=0,       line_dash="dash",  line_color="#888780")
-        fig.add_vline(x=avg_ret, line_dash="dot",   line_color="#7F77DD",
+        fig.add_vline(x=0,       line_dash="dash", line_color="#888780")
+        fig.add_vline(x=avg_ret, line_dash="dot",  line_color="#7F77DD",
                       annotation_text=f"Avg {avg_ret:.1f}%",
                       annotation_position="top right")
         fig.update_layout(xaxis_title=f"{forward_days}-day return (%)",
@@ -487,7 +454,7 @@ if run_button:
                         line=dict(width=1, color="white")),
             name="Today"
         ))
-       fig.update_layout(
+        fig.update_layout(
             title=f"PC1={var[0]:.1f}%  PC2={var[1]:.1f}% variance explained",
             xaxis_title=f"PC1 ({var[0]:.1f}%)",
             yaxis_title=f"PC2 ({var[1]:.1f}%)",
@@ -544,15 +511,15 @@ if run_button:
             x=imp_df["importance"], y=imp_df["feature"],
             orientation="h", marker_color=colors_i
         ))
-        fig.update_layout(xaxis_title="Importance", height=560,
+        fig.update_layout(xaxis_title="Importance", height=620,
                            plot_bgcolor="white", paper_bgcolor="white",
+                           font=dict(color="black"),
                            margin=dict(l=160))
         st.plotly_chart(fig, use_container_width=True)
-        st.caption(f"RF test accuracy: {test_acc:.1f}% | "
-                   f"Low accuracy is expected — markets are noisy.")
+        st.caption(f"RF test accuracy: {test_acc:.1f}% | Low accuracy is expected — markets are noisy.")
 
     with tab5:
-        st.subheader("Regression within bearish regime")
+        st.subheader("Regression within regime 0")
         reg_df = features_df[
             features_df["cluster"]==0
         ][["rsi","bb_pct_b",forward_col]].dropna()
@@ -565,24 +532,23 @@ if run_button:
             lr = LinearRegression().fit(Xr, yr)
             xl = np.linspace(Xr.min(), Xr.max(), 100)
             yl = lr.predict(xl.reshape(-1,1))
-            fig.add_trace(go.Scatter(x=reg_df[col_n], y=reg_df[forward_col],
-                                      mode="markers",
-                                      marker=dict(size=4, color="#B5D4F4", opacity=0.5),
-                                      showlegend=False), row=1, col=col_i)
-            fig.add_trace(go.Scatter(x=xl, y=yl, mode="lines",
-                                      line=dict(color="#E24B4A", width=2),
-                                      name=f"R²={lr.score(Xr,yr):.3f}"),
-                           row=1, col=col_i)
-        fig.update_layout(height=400, plot_bgcolor="white", paper_bgcolor="white")
+            fig.add_trace(go.Scatter(
+                x=reg_df[col_n], y=reg_df[forward_col], mode="markers",
+                marker=dict(size=4, color="#B5D4F4", opacity=0.5),
+                showlegend=False), row=1, col=col_i)
+            fig.add_trace(go.Scatter(
+                x=xl, y=yl, mode="lines",
+                line=dict(color="#E24B4A", width=2),
+                name=f"R²={lr.score(Xr,yr):.3f}"),
+                row=1, col=col_i)
+        fig.update_layout(height=400, plot_bgcolor="white", paper_bgcolor="white",
+                           font=dict(color="black"))
         st.plotly_chart(fig, use_container_width=True)
-        st.caption("Low R² confirms no single indicator predicts returns reliably "
-                   "— justifying the multi-feature similarity approach.")
+        st.caption("Low R² confirms no single indicator predicts returns reliably — justifying the multi-feature similarity approach.")
+
     with tab6:
         st.subheader("Monte Carlo simulation — forward price paths")
-        st.caption(
-            "Simulates 500 possible price paths by sampling from the "
-            "forward returns of similar historical instances."
-        )
+        st.caption("Simulates 500 possible price paths by sampling from the forward returns of similar historical instances.")
 
         fwd_clean  = similar_df[forward_col].dropna().values
         spot_price = stock_df["Close"].iloc[-1]
@@ -592,14 +558,10 @@ if run_button:
         if len(fwd_clean) < 5:
             st.warning("Not enough similar instances for simulation.")
         else:
-            # Convert percentage returns to daily step returns
             daily_returns = fwd_clean / 100 / n_days
-
-            # Run simulations
             np.random.seed(42)
             simulations = np.zeros((n_sims, n_days + 1))
             simulations[:, 0] = spot_price
-
             for day in range(1, n_days + 1):
                 sampled = np.random.choice(daily_returns, size=n_sims, replace=True)
                 simulations[:, day] = simulations[:, day-1] * (1 + sampled)
@@ -610,80 +572,60 @@ if run_button:
             p10          = np.percentile(final_prices, 10)
             p90          = np.percentile(final_prices, 90)
 
-            # Metrics
             m1,m2,m3,m4 = st.columns(4)
-            m1.metric("Current price",  f"${spot_price:.2f}")
-            m2.metric("Median outcome", f"${median_price:.2f}",
+            m1.metric("Current price",        f"${spot_price:.2f}")
+            m2.metric("Median outcome",       f"${median_price:.2f}",
                       delta=f"{((median_price/spot_price)-1)*100:.1f}%")
-            m3.metric("10th percentile (bear)", f"${p10:.2f}")
-            m4.metric("90th percentile (bull)", f"${p90:.2f}")
+            m3.metric("10th pct (bear)",      f"${p10:.2f}")
+            m4.metric("90th pct (bull)",      f"${p90:.2f}")
 
-            # Fan chart — plot all paths
             fig = go.Figure()
-
-            # All simulation paths (faint)
             for i in range(min(200, n_sims)):
                 fig.add_trace(go.Scatter(
-                    x=list(range(n_days + 1)),
-                    y=simulations[i],
+                    x=list(range(n_days + 1)), y=simulations[i],
                     mode="lines",
                     line=dict(width=0.4, color="rgba(127,119,221,0.15)"),
-                    showlegend=False,
-                    hoverinfo="skip"
+                    showlegend=False, hoverinfo="skip"
                 ))
 
-            # Percentile bands
             p10_path = np.percentile(simulations, 10, axis=0)
             p50_path = np.percentile(simulations, 50, axis=0)
             p90_path = np.percentile(simulations, 90, axis=0)
 
-            fig.add_trace(go.Scatter(
-                x=list(range(n_days + 1)), y=p90_path,
-                mode="lines", name="90th percentile",
-                line=dict(width=2, color="#5DCAA5", dash="dash")
-            ))
-            fig.add_trace(go.Scatter(
-                x=list(range(n_days + 1)), y=p50_path,
-                mode="lines", name="Median path",
-                line=dict(width=2.5, color="#7F77DD")
-            ))
-            fig.add_trace(go.Scatter(
-                x=list(range(n_days + 1)), y=p10_path,
-                mode="lines", name="10th percentile",
-                line=dict(width=2, color="#E24B4A", dash="dash")
-            ))
-
-            # Current price line
-            fig.add_hline(y=spot_price, line_dash="dot",
-                          line_color="#888780", line_width=1,
-                          annotation_text="Current price",
+            fig.add_trace(go.Scatter(x=list(range(n_days+1)), y=p90_path,
+                                      mode="lines", name="90th percentile",
+                                      line=dict(width=2, color="#5DCAA5", dash="dash")))
+            fig.add_trace(go.Scatter(x=list(range(n_days+1)), y=p50_path,
+                                      mode="lines", name="Median path",
+                                      line=dict(width=2.5, color="#7F77DD")))
+            fig.add_trace(go.Scatter(x=list(range(n_days+1)), y=p10_path,
+                                      mode="lines", name="10th percentile",
+                                      line=dict(width=2, color="#E24B4A", dash="dash")))
+            fig.add_hline(y=spot_price, line_dash="dot", line_color="#888780",
+                          line_width=1, annotation_text="Current price",
                           annotation_position="right")
-
             fig.update_layout(
-                title=f"{n_sims} simulated price paths over {n_days} days "
-                      f"(sampled from {len(fwd_clean)} similar historical instances)",
+                title=f"{n_sims} simulated paths over {n_days} days",
                 xaxis_title="Trading days forward",
                 yaxis_title="Simulated price",
                 height=500,
                 plot_bgcolor="white",
                 paper_bgcolor="white",
+                font=dict(color="black"),
                 legend=dict(orientation="h", yanchor="bottom", y=1.02)
             )
             st.plotly_chart(fig, use_container_width=True)
 
-            # Final price distribution
             fig2 = go.Figure(go.Histogram(
                 x=final_prices, nbinsx=30,
                 marker_color=["#5DCAA5" if v > spot_price else "#E24B4A"
                               for v in final_prices],
                 opacity=0.85
             ))
-            fig2.add_vline(x=spot_price,    line_dash="dash",
-                           line_color="#888780",
+            fig2.add_vline(x=spot_price,   line_dash="dash", line_color="#888780",
                            annotation_text="Current price",
                            annotation_position="top left")
-            fig2.add_vline(x=median_price,  line_dash="dot",
-                           line_color="#7F77DD",
+            fig2.add_vline(x=median_price, line_dash="dot",  line_color="#7F77DD",
                            annotation_text=f"Median ${median_price:.2f}",
                            annotation_position="top right")
             fig2.update_layout(
@@ -692,28 +634,28 @@ if run_button:
                 yaxis_title="Count",
                 height=350,
                 plot_bgcolor="white",
-                paper_bgcolor="white"
+                paper_bgcolor="white",
+                font=dict(color="black")
             )
             st.plotly_chart(fig2, use_container_width=True)
-
             st.caption(
                 f"{pct_up:.0f}% of simulated paths ended above current price. "
-                f"Simulation is based on forward returns from the {len(fwd_clean)} "
-                f"most similar historical setups — not random walk assumptions."
+                f"Based on {len(fwd_clean)} similar historical setups — not random walk assumptions."
             )
 
 else:
     st.info("Enter a ticker and click **Run analysis** to begin.")
     st.markdown("""
     **How it works:**
-    - Computes 20 technical features from price history using pure pandas/numpy
-    - K-Means clustering identifies market regimes (elbow method selects K)
+    - Computes 26 technical features using pure pandas/numpy
+    - K-Means clustering identifies market regimes
     - Finds K most similar historical setups via cosine distance (k-NN)
     - Shows distribution of what happened next
     - Random Forest cross-validates the signal
+    - Monte Carlo simulates 500 forward price paths
 
     **Supported:** Any US stock (AAPL, TSLA, NVDA) or Indian stock (RELIANCE, INFY, TCS)
     """)
+
 st.divider()
 st.caption("Prepared by Gagan Sodhi | HTW Berlin, Germany")
-
